@@ -3,8 +3,8 @@ import json
 import os
 
 # ── Load secrets from GitHub ──────────────────────────────
-TOKEN   = os.environ["AAGBoNku9A9y5JaUoT3zLy1NKphO2WRq5ek"]
-CHAT_ID = os.environ["889299766"]
+TOKEN   = os.environ["TELEGRAM_TOKEN"]
+CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
 
 # ── Your skills to match ──────────────────────────────────
 MY_SKILLS = ['pyspark', 'azure', 'databricks', 'sql', 
