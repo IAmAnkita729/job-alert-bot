@@ -2,11 +2,8 @@ name: Hourly Job Alert
 
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 9,12 * * *'
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   run-alert:
@@ -14,10 +11,11 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Install Python libraries
-        run: pip install requests
+      # ✅ UPDATE THIS STEP (IMPORTANT)
+      - name: Install dependencies
+        run: pip install requests feedparser
 
       - name: Run the job alert script
         env:
