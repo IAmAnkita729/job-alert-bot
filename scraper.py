@@ -27,7 +27,7 @@ def save_seen(seen_list):
 
 # ── Send Telegram message ─────────────────────────────────
 def send_telegram(message):
-    url = f"https://api.telegram.org/bot{AAGBoNku9A9y5JaUoT3zLy1NKphO2WRq5ek}/sendMessage"
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message}
     requests.post(url, data=payload)
     print(f"✅ Sent: {message[:60]}")
