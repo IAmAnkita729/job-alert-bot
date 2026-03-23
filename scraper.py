@@ -3,12 +3,15 @@ import json
 import os
 
 # ── Load secrets from GitHub ──────────────────────────────
-TOKEN   = os.environ["TELEGRAM_TOKEN"]
-CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
+TOKEN   = os.environ.get("TELEGRAM_TOKEN")
+CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 # ── Your skills to match ──────────────────────────────────
-MY_SKILLS = ['pyspark', 'azure', 'databricks', 'sql', 
-             'data engineer', 'python', 'spark', 'azure data  factotry' , 'ADF']
+MY_SKILLS = [
+    'pyspark', 'azure', 'databricks', 'sql',
+    'data engineer', 'python', 'spark',
+    'azure data factory', 'adf'
+]
 
 # ── File that remembers jobs already sent ─────────────────
 SEEN_FILE = "jobs_seen.json"
@@ -25,17 +28,28 @@ def save_seen(seen_list):
     with open(SEEN_FILE, "w") as f:
         json.dump(seen_list, f)
 
-# ── Send Telegram message ─────────────────────────────────
+# ── Send Telegram message (FIXED + DEBUG) ─────────────────
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": CHAT_ID, "text": message}
-    requests.post(url, data=payload)
-    print(f"✅ Sent: {message[:60]}")
+
+    response = requests.post(url, data=payload)
+
+    print("Telegram response:", response.text)  # 🔥 DEBUG
+
+    if response.status_code == 200:
+        print(f"✅ Sent: {message[:60]}")
+    else:
+        print("❌ Failed to send message")
 
 # ── Main job checking logic ───────────────────────────────
 def check_jobs():
+
+    # 🔥 TEST MESSAGE (keep this for now)
+    send_telegram("🔥 TEST MESSAGE FROM GITHUB")
+
     url = "https://jobicy.com/api/v2/remote-jobs?count=20&tag=data-engineer"
-    
+
     try:
         response = requests.get(url, timeout=10)
         jobs = response.json().get('jobs', [])
@@ -54,11 +68,10 @@ def check_jobs():
         link    = job.get('url', '')
         desc    = job.get('jobDescription', '').lower()
 
-        # Skip if already sent
         if job_id in seen:
             continue
 
-        # Check if job matches your skills
+        # Skill match
         if any(skill in desc or skill in title.lower() for skill in MY_SKILLS):
             message = (
                 f"🚨 NEW JOB ALERT!\n\n"
@@ -68,10 +81,10 @@ def check_jobs():
             )
             send_telegram(message)
             new_jobs_found += 1
+            new_seen.append(job_id)  # ✅ only save if sent
 
-        new_seen.append(job_id)
-
-    save_seen(new_seen[-200:])  # Keep only last 200 to avoid file bloat
+    save_seen(new_seen[-200:])
     print(f"✅ Done. {new_jobs_found} new jobs sent.")
 
+# ── Run ───────────────────────────────────────────────────
 check_jobs()
