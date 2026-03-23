@@ -1,76 +1,109 @@
 import requests
-import json
 import os
+import json
+import feedparser
 
-TOKEN   = os.environ.get("TELEGRAM_TOKEN")
+TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-
-# 🎯 Better skill targeting (balanced)
-MY_SKILLS = [
-    'data engineer', 'data', 'etl', 'pipeline',
-    'azure', 'spark', 'databricks', 'sql', 'python'
-]
 
 SEEN_FILE = "jobs_seen.json"
 
+# 🎯 STRONG FILTER (no random jobs now)
+KEYWORDS = [
+    "azure data engineer",
+    "data engineer azure",
+    "azure engineer data",
+    "etl azure",
+    "databricks engineer",
+    "azure databricks",
+    "data engineer spark"
+]
+
+def send(msg):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+
 def load_seen():
     if os.path.exists(SEEN_FILE):
-        with open(SEEN_FILE) as f:
-            return json.load(f)
+        return json.load(open(SEEN_FILE))
     return []
 
-def save_seen(seen_list):
-    with open(SEEN_FILE, "w") as f:
-        json.dump(seen_list, f)
+def save_seen(data):
+    json.dump(data, open(SEEN_FILE, "w"))
 
-def send_telegram(message):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    response = requests.post(url, data={
-        "chat_id": CHAT_ID,
-        "text": message
-    })
-    print("Telegram response:", response.text)
+def match(title):
+    t = title.lower()
+    return any(k in t for k in KEYWORDS)
 
-def check_jobs():
-    url = "https://jobicy.com/api/v2/remote-jobs?count=20"
-
+# ✅ JOBICY
+def jobicy():
     try:
-        response = requests.get(url, timeout=10)
-        jobs = response.json().get('jobs', [])
-        print("Jobs fetched:", len(jobs))
-    except Exception as e:
-        print("API ERROR:", e)
-        return
+        data = requests.get("https://jobicy.com/api/v2/remote-jobs").json()
+        return [{
+            "id": str(j["id"]),
+            "title": j["jobTitle"],
+            "company": j["companyName"],
+            "link": j["url"]
+        } for j in data.get("jobs", [])]
+    except:
+        return []
 
+# ✅ REMOTEOK
+def remoteok():
+    try:
+        data = requests.get("https://remoteok.com/api").json()[1:]
+        return [{
+            "id": str(j.get("id")),
+            "title": j.get("position"),
+            "company": j.get("company"),
+            "link": j.get("url")
+        } for j in data]
+    except:
+        return []
+
+# ✅ GOOGLE JOBS VIA RSS (IMPORTANT 🔥)
+def google_jobs():
+    feed = feedparser.parse(
+        "https://news.google.com/rss/search?q=azure+data+engineer+jobs&hl=en-IN&gl=IN&ceid=IN:en"
+    )
+    jobs = []
+    for entry in feed.entries:
+        jobs.append({
+            "id": entry.link,
+            "title": entry.title,
+            "company": "Google Jobs",
+            "link": entry.link
+        })
+    return jobs
+
+def main():
     seen = load_seen()
     new_seen = seen.copy()
-    new_jobs_found = 0
+    sent = 0
+
+    jobs = jobicy() + remoteok() + google_jobs()
 
     for job in jobs:
-        job_id  = str(job.get('id', ''))
-        title   = job.get('jobTitle', '').lower()
-        company = job.get('companyName', '')
-        link    = job.get('url', '')
-
-        print("Checking:", title)
-
-        if job_id in seen:
+        if not job["title"]:
             continue
 
-        # ✅ SMART FILTER (title based)
-        if any(skill in title for skill in MY_SKILLS):
-            message = (
-                f"🚨 NEW JOB ALERT!\n\n"
-                f"💼 {title.title()}\n"
-                f"🏢 {company}\n"
-                f"🔗 {link}"
-            )
+        jid = job["id"]
 
-            send_telegram(message)
-            new_jobs_found += 1
-            new_seen.append(job_id)
+        if jid in seen:
+            continue
 
-    save_seen(new_seen[-200:])
-    print(f"✅ Done. {new_jobs_found} jobs sent.")
+        if match(job["title"]):
+            msg = f"""🚨 Azure Data Engineer Job
 
-check_jobs()
+💼 {job['title']}
+🏢 {job['company']}
+🔗 {job['link']}"""
+
+            send(msg)
+            new_seen.append(jid)
+            sent += 1
+
+    save_seen(new_seen[-400:])
+    print("Jobs sent:", sent)
+
+main()
