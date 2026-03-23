@@ -1,22 +1,27 @@
 import requests
 import os
 import json
-import feedparser
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 SEEN_FILE = "jobs_seen.json"
 
-# 🎯 STRONG FILTER (no random jobs now)
+# 🎯 STRONG FILTER (Azure-focused)
 KEYWORDS = [
     "azure data engineer",
     "data engineer azure",
-    "azure engineer data",
-    "etl azure",
-    "databricks engineer",
     "azure databricks",
-    "data engineer spark"
+    "databricks engineer",
+    "etl engineer",
+    "data pipeline engineer",
+    "azure etl"
+]
+
+# ❌ REMOVE JUNK CONTENT
+BLOCK_WORDS = [
+    "course", "blog", "roadmap", "interview",
+    "questions", "tutorial", "learn", "guide"
 ]
 
 def send(msg):
@@ -34,6 +39,10 @@ def save_seen(data):
 def match(title):
     t = title.lower()
     return any(k in t for k in KEYWORDS)
+
+def is_valid(title):
+    t = title.lower()
+    return not any(b in t for b in BLOCK_WORDS)
 
 # ✅ JOBICY
 def jobicy():
@@ -61,41 +70,28 @@ def remoteok():
     except:
         return []
 
-# ✅ GOOGLE JOBS VIA RSS (IMPORTANT 🔥)
-def google_jobs():
-    feed = feedparser.parse(
-        "https://news.google.com/rss/search?q=azure+data+engineer+jobs&hl=en-IN&gl=IN&ceid=IN:en"
-    )
-    jobs = []
-    for entry in feed.entries:
-        jobs.append({
-            "id": entry.link,
-            "title": entry.title,
-            "company": "Google Jobs",
-            "link": entry.link
-        })
-    return jobs
-
 def main():
     seen = load_seen()
     new_seen = seen.copy()
     sent = 0
 
-    jobs = jobicy() + remoteok() + google_jobs()
+    jobs = jobicy() + remoteok()
 
     for job in jobs:
         if not job["title"]:
             continue
 
+        title = job["title"]
         jid = job["id"]
 
         if jid in seen:
             continue
 
-        if match(job["title"]):
+        # 🎯 APPLY FILTERS
+        if match(title) and is_valid(title):
             msg = f"""🚨 Azure Data Engineer Job
 
-💼 {job['title']}
+💼 {title}
 🏢 {job['company']}
 🔗 {job['link']}"""
 
@@ -103,7 +99,7 @@ def main():
             new_seen.append(jid)
             sent += 1
 
-    save_seen(new_seen[-400:])
+    save_seen(new_seen[-300:])
     print("Jobs sent:", sent)
 
 main()
