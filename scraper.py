@@ -7,18 +7,15 @@ CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 
 SEEN_FILE = "jobs_seen.json"
 
-# 🎯 STRONG FILTER (Azure-focused)
 KEYWORDS = [
     "azure data engineer",
-    "data engineer azure",
-    "azure databricks",
-    "databricks engineer",
-    "etl engineer",
-    "data pipeline engineer",
-    "azure etl"
+    "data engineer",
+    "azure",
+    "databricks",
+    "etl",
+    "data pipeline"
 ]
 
-# ❌ REMOVE JUNK CONTENT
 BLOCK_WORDS = [
     "course", "blog", "roadmap", "interview",
     "questions", "tutorial", "learn", "guide"
@@ -36,15 +33,31 @@ def load_seen():
 def save_seen(data):
     json.dump(data, open(SEEN_FILE, "w"))
 
-def match(title):
+# 🎯 SCORING SYSTEM (VERY IMPORTANT)
+def score_job(title):
     t = title.lower()
-    return any(k in t for k in KEYWORDS)
+    score = 0
+
+    if "azure data engineer" in t:
+        score += 10
+    if "data engineer" in t:
+        score += 6
+    if "azure" in t:
+        score += 4
+    if "databricks" in t:
+        score += 3
+    if "etl" in t:
+        score += 2
+
+    return score
 
 def is_valid(title):
     t = title.lower()
-    return not any(b in t for b in BLOCK_WORDS)
+    if any(b in t for b in BLOCK_WORDS):
+        return False
+    return True
 
-# ✅ JOBICY
+# APIs
 def jobicy():
     try:
         data = requests.get("https://jobicy.com/api/v2/remote-jobs").json()
@@ -57,7 +70,6 @@ def jobicy():
     except:
         return []
 
-# ✅ REMOTEOK
 def remoteok():
     try:
         data = requests.get("https://remoteok.com/api").json()[1:]
@@ -73,33 +85,47 @@ def remoteok():
 def main():
     seen = load_seen()
     new_seen = seen.copy()
-    sent = 0
 
     jobs = jobicy() + remoteok()
+
+    scored_jobs = []
 
     for job in jobs:
         if not job["title"]:
             continue
 
-        title = job["title"]
         jid = job["id"]
+        title = job["title"]
 
         if jid in seen:
             continue
 
-        # 🎯 APPLY FILTERS
-        if match(title) and is_valid(title):
-            msg = f"""🚨 Azure Data Engineer Job
+        if not is_valid(title):
+            continue
 
-💼 {title}
+        score = score_job(title)
+
+        if score > 0:
+            job["score"] = score
+            scored_jobs.append(job)
+
+    # 🎯 SORT BEST FIRST
+    scored_jobs.sort(key=lambda x: x["score"], reverse=True)
+
+    # 🔥 TAKE TOP 10 ONLY
+    top_jobs = scored_jobs[:10]
+
+    for job in top_jobs:
+        msg = f"""🚨 Top Azure/Data Job
+
+💼 {job['title']}
 🏢 {job['company']}
 🔗 {job['link']}"""
 
-            send(msg)
-            new_seen.append(jid)
-            sent += 1
+        send(msg)
+        new_seen.append(job["id"])
 
     save_seen(new_seen[-300:])
-    print("Jobs sent:", sent)
+    print("Sent:", len(top_jobs))
 
 main()
