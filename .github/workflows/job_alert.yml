@@ -2,7 +2,7 @@ name: Hourly Job Alert
 
 on:
   schedule:
-    - cron: '0 9,12 * * *'
+    - cron: '0 9,18 * * *'
   workflow_dispatch:
 
 jobs:
